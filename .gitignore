@@ -1,0 +1,19 @@
+# Build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# btgchk generated files
+*-new.btg
+btgchk-*.btg
+
+# Editor / OS junk
+*.swp
+*~
+.DS_Store
+Thumbs.db
