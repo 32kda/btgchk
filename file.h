@@ -1,6 +1,7 @@
 #ifndef BTG_FILE_H
 #define BTG_FILE_H
 
+#include <stddef.h>
 #include "struct.h"
 
 typedef struct xml_node_s {
@@ -23,6 +24,6 @@ xml_node *get_xml_tree (FILE *xml);
 xml_node *get_key_value (FILE *xml);
 void set_als (threshold_info *threshold, const char *als);
 
-int btg_decompress (const char filename[]);
+int btg_decompress (const char filename[], char outpath[], size_t outsz, int check_only);
 
 #endif

@@ -13,6 +13,8 @@
 #include "edge.h"
 #include "airport.h"
 
+int btg_diagnostic = 0;
+
 void remove_unused (btg_header *head) {
 	remove_unused_bspheres (head->base.bsphere);
 	remove_unused_vertices (head->base.vertex);

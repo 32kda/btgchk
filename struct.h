@@ -3,6 +3,8 @@
 
 #include <time.h>
 
+extern int btg_diagnostic;
+
 typedef struct fcoord_s {
 	float x;
 	float y;

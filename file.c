@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <math.h>
+#include <unistd.h>
 #include <archive.h>
 #include <archive_entry.h>
 
@@ -389,29 +390,41 @@ void set_als (threshold_info *threshold, const char *als) {
 	}
 }
 
-int btg_decompress (const char filename[]) {
+int btg_decompress (const char filename[], char outpath[], size_t outsz, int check_only) {
 
-	char iname[PATH_MAX], oname[PATH_MAX];
+	char iname[PATH_MAX];
 	struct archive *a = NULL;
 	struct archive_entry *entry = NULL;
 	FILE *ifile = NULL, *ofile = NULL;
 	int res;
 	ssize_t size_r, size_w;
 	char buff[1024];
+	static int temp_cnt = 0;
+	const char *tmpdir;
 
 	snprintf(iname, PATH_MAX, "%s.btg.gz", filename);
-	snprintf(oname, PATH_MAX, "%s.btg", filename);
 	printf("extracting archive '%s' ...\n", iname);
 
 	if ((ifile = fopen(iname, "rb")) == NULL) {
+		snprintf(outpath, outsz, "%s.btg", filename);
 		fprintf(stderr, "could't open file '%s' to read! exit.\n", iname);
 		return 1;
 	}
 
-	if ((ofile = fopen(oname, "wb")) == NULL) {
-		fprintf(stderr, "could't open file '%s' to write! exit.\n", oname);
+	if (check_only) {
+		tmpdir = getenv("TEMP");
+		if (tmpdir == NULL) tmpdir = getenv("TMP");
+		if (tmpdir == NULL) tmpdir = ".";
+		snprintf(outpath, outsz, "%s/btgchk-%ld-%d.btg", tmpdir, (long)getpid(), temp_cnt++);
+	}
+	else {
+		snprintf(outpath, outsz, "%s.btg", filename);
+	}
+
+	if ((ofile = fopen(outpath, "wb")) == NULL) {
+		fprintf(stderr, "could't open file '%s' to write! exit.\n", outpath);
 		fclose(ifile);
-		return 1;
+		return 2;
 	}
 
 	a = archive_read_new();

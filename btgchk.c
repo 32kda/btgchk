@@ -40,16 +40,16 @@ int main(int argc, char *argv[])
 {
 
 	FILE *infile = NULL, *outfile = NULL;
-	char fullpath[PATH_MAX] = {"\0"}, basepath[PATH_MAX] = {"\0"}, filename[PATH_MAX] = {"\0"}, file[PATH_MAX] = {"\0"};
+	char fullpath[PATH_MAX] = {"\0"}, basepath[PATH_MAX] = {"\0"}, filename[PATH_MAX] = {"\0"}, file[PATH_MAX] = {"\0"}, btgfile[PATH_MAX] = {"\0"};
 	char index_s[PATH_MAX] = {"\0"}, lat_s[PATH_MAX] = {"\0"}, lon_s[PATH_MAX] = {"\0"}, texture[64] = {"\0"}, rwy_als[PATH_MAX] = {"\0"};
-	int opt, flagp = 0, flaga = 0, flagi = 0, flagl = 0, flagm = 0, flagn = 0, flagg = 0, index = 0, indices[10] = {0}, cnt;
+	int opt, flagp = 0, flaga = 0, flagi = 0, flagl = 0, flagm = 0, flagn = 0, flagg = 0, check_only = 0, index = 0, indices[10] = {0}, cnt, dres = 0;
 	double holesize = -2.0;
 	btg_header *all_header = NULL, *last_header = NULL, *temp = NULL;
 	coord_cart cart;
 	coord_geo geo;
 	btg_vertex *v;
 
-	while ((opt = getopt(argc, argv, "p:a:i:l:m:t:s:r:nh")) != -1) {
+	while ((opt = getopt(argc, argv, "p:a:i:l:m:t:s:r:nch")) != -1) {
 		switch (opt) {
 			case 'p':
 				strncpy(basepath, optarg, PATH_MAX);
@@ -75,6 +75,10 @@ int main(int argc, char *argv[])
 			case 'n':
 				flagn = 1;
 				break;
+			case 'c':
+				check_only = 1;
+				btg_diagnostic = 1;
+				break;
 			case 's':
 				sscanf(optarg, "%lf", &holesize);
 				break;
@@ -91,6 +95,7 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "       %s -p basepath -i tileindex\n", argv[0]);
 				fprintf(stderr, "       %s -p basepath -l latitude -m longitude\n", argv[0]);
 				fprintf(stderr, "additional parameters:\n");
+				fprintf(stderr, "    -c                  diagnostic only, do not write any file\n");
 				fprintf(stderr, "    -n                  check boundery to neighbour tiles\n");
 				fprintf(stderr, "    -s meter            the maximum size (in meter) of holes to close\n");
 				fprintf(stderr, "    -t texture          a texture for closing holes\n");
@@ -222,25 +227,28 @@ int main(int argc, char *argv[])
 		get_terrain_path (fullpath, basepath, index);
 
 		snprintf(file, PATH_MAX, "%.4082s/%.8s", fullpath, filename);
-		btg_decompress (file);
+		dres = btg_decompress (file, btgfile, sizeof(btgfile), check_only);
 
-		snprintf(file, PATH_MAX, "%.4082s/%.8s.btg", fullpath, filename);
-		if ((infile = fopen(file, "rb")) == NULL) {
-			fprintf(stderr, "File '%s' doesn't exist! exit.\n", file);
+		if ((infile = fopen(btgfile, "rb")) == NULL) {
+			fprintf(stderr, "File '%s' doesn't exist! exit.\n", btgfile);
 			return EXIT_FAILURE;
 		}
 
 		if ((last_header = new_header (&all_header)) == NULL) {
 			fprintf(stderr, "no memory left for header!\n");
+			fclose (infile);
+			if (check_only && dres == 0) remove (btgfile);
 			return EXIT_FAILURE;
 		}
 
 		if (read_btg (infile, last_header)) {
-			fprintf(stderr, "Problem while reading btg-file '%s'! exit.\n", file);
+			fprintf(stderr, "Problem while reading btg-file '%s'! exit.\n", btgfile);
 			fclose (infile);
+			if (check_only && dres == 0) remove (btgfile);
 			return EXIT_FAILURE;
 		}
 		fclose (infile);
+		if (check_only && dres == 0) remove (btgfile);
 		strncpy(last_header->airport, filename, 8);
 
 		if (holesize > -1.0)
@@ -301,23 +309,25 @@ int main(int argc, char *argv[])
 // we have now a index, read the tile in
 			get_terrain_path (fullpath, basepath, indices[cnt]);
 			snprintf(file, PATH_MAX, "%.4084s/%d", fullpath, indices[cnt]);
-			btg_decompress (file);
+			dres = btg_decompress (file, btgfile, sizeof(btgfile), check_only);
 
-			snprintf(file, PATH_MAX, "%.4084s/%d.btg", fullpath, indices[cnt]);
-			if ((infile = fopen(file, "rb")) == NULL) {
-				fprintf(stderr, "File '%s' doesn't exist! exit.\n", file);
+			if ((infile = fopen(btgfile, "rb")) == NULL) {
+				fprintf(stderr, "File '%s' doesn't exist! exit.\n", btgfile);
 			}
 			else {
 
 				if ((last_header = new_header (&all_header)) == NULL) {
 					fprintf(stderr, "no memory left for header!\n");
+					fclose (infile);
+					if (check_only && dres == 0) remove (btgfile);
 					return EXIT_FAILURE;
 				}
 
 				if (read_btg (infile, last_header)) {
-					fprintf(stderr, "Problem while reading btg-file '%s'! exit.\n", file);
+					fprintf(stderr, "Problem while reading btg-file '%s'! exit.\n", btgfile);
 				}
 				fclose (infile);
+				if (check_only && dres == 0) remove (btgfile);
 				last_header->index = indices[cnt];
 
 				if (holesize > -1.0)
@@ -374,33 +384,38 @@ int main(int argc, char *argv[])
 
 	printf("mark 4...\n");
 
-	temp = all_header;
-	while (temp) {
+	if (check_only) {
+		printf("diagnostic only - no file written.\n");
+	}
+	else {
+		temp = all_header;
+		while (temp) {
 
-		if (temp->index < 0 && strlen(temp->airport) > 0) {
-			snprintf(file, PATH_MAX, "%.4078s/%.8s-new.btg", fullpath, temp->airport);
-		}
-		else if (temp->index > 0 && strlen(temp->airport) == 0) {
-			get_terrain_path (fullpath, basepath, temp->index);
-			snprintf(file, PATH_MAX, "%.4084s/%d-new.btg", fullpath, temp->index);
-		}
-		else {
-			fprintf(stderr, "Unknown header! Index: %d / Airport '%s'! exit.\n", temp->index, temp->airport);
-			return EXIT_FAILURE;
-		}
+			if (temp->index < 0 && strlen(temp->airport) > 0) {
+				snprintf(file, PATH_MAX, "%.4078s/%.8s-new.btg", fullpath, temp->airport);
+			}
+			else if (temp->index > 0 && strlen(temp->airport) == 0) {
+				get_terrain_path (fullpath, basepath, temp->index);
+				snprintf(file, PATH_MAX, "%.4084s/%d-new.btg", fullpath, temp->index);
+			}
+			else {
+				fprintf(stderr, "Unknown header! Index: %d / Airport '%s'! exit.\n", temp->index, temp->airport);
+				return EXIT_FAILURE;
+			}
 
-		if ((outfile = fopen(file, "wb")) == NULL) {
-			fprintf(stderr, "Can't create file '%s'! exit.\n", file);
-			return 2;
-		}
-		printf("write file '%s' ...\n", file);
-		if (write_btg (outfile, temp)) {
-			fprintf(stderr, "Problem while writing btg-file '%s'! exit.\n", file);
+			if ((outfile = fopen(file, "wb")) == NULL) {
+				fprintf(stderr, "Can't create file '%s'! exit.\n", file);
+				return 2;
+			}
+			printf("write file '%s' ...\n", file);
+			if (write_btg (outfile, temp)) {
+				fprintf(stderr, "Problem while writing btg-file '%s'! exit.\n", file);
+				fclose (outfile);
+				return EXIT_FAILURE;
+			}
 			fclose (outfile);
-			return EXIT_FAILURE;
+			temp = temp->next;
 		}
-		fclose (outfile);
-		temp = temp->next;
 	}
 
 	printf("mark 5...\n");

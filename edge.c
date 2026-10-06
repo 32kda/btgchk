@@ -620,6 +620,25 @@ int check_vectorline (btg_fence *fence, short aspect) {
 	return 0;
 }
 
+static btg_fence *close_hole_or_report (btg_fence *fence, btg_base *base) {
+	if (btg_diagnostic) {
+		printf("examine_fence: hole detected (diagnostic only, not closed)\n");
+		free_border (fence->border);
+		free (fence);
+		return NULL;
+	}
+	close_hole (fence, base);
+	return NULL;
+}
+
+static void collaps_or_report (btg_vertex *v0, btg_vertex *v1, btg_base *base) {
+	if (btg_diagnostic) {
+		printf("examine_fence: vertex collapse needed (diagnostic only, not collapsed)\n");
+		return;
+	}
+	collaps_vertices (v0, v1, base);
+}
+
 btg_fence *examine_fence (btg_fence *fence, btg_base *base) {
 
 	int left_side = 0, right_side = 0;
@@ -698,14 +717,12 @@ btg_fence *examine_fence (btg_fence *fence, btg_base *base) {
 					printf("examine_fence: fence is a hole!\n");
 					if ((fence->max_x - fence->min_x) < base->holesize && (fence->max_y - fence->min_y) < base->holesize) {
 						printf("examine_fence: close it!\n");
-						close_hole (fence, base);
-						return NULL;
+						return close_hole_or_report (fence, base);
 					}
 				}
 				else {
 					if (check_vectorline(fence, USE_PROJECTION)) {
-						close_hole (fence, base);
-						return NULL;
+						return close_hole_or_report (fence, base);
 					}
 				}
 			}
@@ -715,7 +732,7 @@ btg_fence *examine_fence (btg_fence *fence, btg_base *base) {
 				len = pydacoras(edge_res.vertex[0], edge_res.vertex[1], USE_RELATIVE);
 				if (len < 0.10) {
 					printf("examine_fence: collaps vertex %f\n", len);
-					collaps_vertices (edge_res.vertex[0], edge_res.vertex[1], base);
+					collaps_or_report (edge_res.vertex[0], edge_res.vertex[1], base);
 					free_border (fence->border);
 					free (fence);
 					return NULL;
@@ -736,14 +753,12 @@ btg_fence *examine_fence (btg_fence *fence, btg_base *base) {
 					printf("examine_fence: fence is a hole!\n");
 					if ((fence->max_x - fence->min_x) < base->holesize && (fence->max_y - fence->min_y) < base->holesize) {
 						printf("examine_fence: close it!\n");
-						close_hole (fence, base);
-						return NULL;
+						return close_hole_or_report (fence, base);
 					}
 				}
 				else {
 					if (check_vectorline(fence, USE_PROJECTION)) {
-						close_hole (fence, base);
-						return NULL;
+						return close_hole_or_report (fence, base);
 					}
 				}
 			}
@@ -753,7 +768,7 @@ btg_fence *examine_fence (btg_fence *fence, btg_base *base) {
 				len = pydacoras(edge_res.vertex[0], edge_res.vertex[1], USE_RELATIVE);
 				if (len < 0.10) {
 					printf("examine_fence: collaps vertex %f\n", len);
-					collaps_vertices (edge_res.vertex[0], edge_res.vertex[1], base);
+					collaps_or_report (edge_res.vertex[0], edge_res.vertex[1], base);
 					free_border (fence->border);
 					free (fence);
 					return NULL;
@@ -772,7 +787,7 @@ btg_fence *examine_fence (btg_fence *fence, btg_base *base) {
 		len = pydacoras(edge_res.vertex[0], edge_res.vertex[1], USE_RELATIVE);
 		if (len < 0.25) {
 			printf("examine_fence: collaps vertex %f\n", len);
-			collaps_vertices (edge_res.vertex[0], edge_res.vertex[1], base);
+			collaps_or_report (edge_res.vertex[0], edge_res.vertex[1], base);
 /*
 			free_border (fence->border);
 			free (fence);
@@ -1465,7 +1480,6 @@ btg_triangle *build_triangle (btg_border *b0, btg_border *b1, btg_border *b2, bt
 
 
 void close_hole (btg_fence *fence, btg_base *base) {
-
 	btg_border *now, *prev, *first, *second, *third;
 	btg_triangle *t_before, *t_after;
 	btg_vertex *v_res, *help;
