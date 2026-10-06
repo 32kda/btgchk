@@ -3,6 +3,8 @@
 
 #include <time.h>
 
+extern int btg_check_index;
+extern char btg_check_airport[16];
 extern int btg_diagnostic;
 
 typedef struct fcoord_s {

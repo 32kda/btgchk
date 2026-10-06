@@ -443,6 +443,7 @@ btg_border *get_next_segment (btg_fence *all, btg_vertex *search, short directio
 btg_fence *find_fence (btg_fence *all_fence) {
 
 	int count, search;
+	int total = 0, guard = 0;
 	btg_fence *new_fence = NULL;
 	btg_border *last = NULL, *now = NULL, *temp;
 
@@ -467,7 +468,16 @@ btg_fence *find_fence (btg_fence *all_fence) {
 	new_fence->border = NULL;
 	new_fence->next = NULL;
 
+	for (temp = all_fence->border ; temp ; temp = temp->next) total++;
+
 	while (new_fence->border == NULL && all_fence->border) {
+
+// safety guard: short circuits put the chain back into the pool, which
+// would otherwise be retried endlessly
+		if (guard++ > total + 1) {
+			fprintf(stderr, "find_fence: too many short circuits, giving up!\n");
+			break;
+		}
 
 // init
 		count = 1;
@@ -1479,6 +1489,13 @@ btg_triangle *build_triangle (btg_border *b0, btg_border *b1, btg_border *b2, bt
 
 
 
+static void close_hole_abort (btg_fence *fence, const char *reason) {
+	fprintf(stderr, "close_hole: %s - tile is problematic, skipping hole repair (index %d / airport '%s')!\n",
+	        reason, btg_check_index, btg_check_airport);
+	free_border (fence->border);
+	free (fence);
+}
+
 void close_hole (btg_fence *fence, btg_base *base) {
 	btg_border *now, *prev, *first, *second, *third;
 	btg_triangle *t_before, *t_after;
@@ -1519,8 +1536,17 @@ void close_hole (btg_fence *fence, btg_base *base) {
 				while (first->next) first = first->next;
 			}
 // remember affected triangles - second edge will collaps, don't need to remember this triangle (will be invalid)
+			if (first->edge == NULL || second->edge == NULL || third->edge == NULL) {
+				close_hole_abort (fence, "missing edge reference");
+				return;
+			}
 			t_before = first->edge->tria[0];
 			t_after = third->edge->tria[0];
+			if ((first->edge->count == 0 && t_before == NULL) ||
+			    (third->edge->count == 0 && t_after == NULL)) {
+				close_hole_abort (fence, "missing triangle reference");
+				return;
+			}
 			v_res = collaps_vertices(second->edge->vertex[0], second->edge->vertex[1], base);
 
 			if (first->edge->count == 0) {
@@ -1617,6 +1643,11 @@ void close_hole (btg_fence *fence, btg_base *base) {
 // build a triangle with first, second and third
 		printf("build a triangle with first, second and third ...\n");
 		t_after = build_triangle (first, second, third, base, 2);
+		if (t_after == NULL) {
+			free (len_all);
+			close_hole_abort (fence, "failed to build triangle");
+			return;
+		}
 		for (i = 0 ; i < 3 ; i++) {
 			if ((t_after->edge[i]->vertex[0] == first->vertex && t_after->edge[i]->vertex[1] == third->vertex) ||
 			    (t_after->edge[i]->vertex[1] == first->vertex && t_after->edge[i]->vertex[0] == third->vertex)

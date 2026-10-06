@@ -13,6 +13,8 @@
 #include "edge.h"
 #include "airport.h"
 
+int btg_check_index = 0;
+char btg_check_airport[16] = {0};
 int btg_diagnostic = 0;
 
 void remove_unused (btg_header *head) {
@@ -65,6 +67,10 @@ void check (btg_header *head) {
 	btg_edge *all;
 	btg_triangle *tria;
 	int cnt, del, i, j, k;
+
+	btg_check_index = head->index;
+	strncpy(btg_check_airport, head->airport, sizeof(btg_check_airport) - 1);
+	btg_check_airport[sizeof(btg_check_airport) - 1] = '\0';
 
 	fprintf(stdout, "********** check base **********\n");
 	fprintf(stderr, "********** check base **********\n");
@@ -134,7 +140,7 @@ void check (btg_header *head) {
 
 	fprintf(stdout, "********** search fence **********\n");
 	fprintf(stderr, "********** search fence **********\n");
-	while (fence->border) {
+	while (fence && fence->border) {
 		if ((found = find_fence (fence))) {
 			if ((found = examine_fence (found, &head->base))) {
 				if (head->base.fence_last) {
@@ -151,11 +157,16 @@ void check (btg_header *head) {
 				}
 			}
 		}
+		else {
+			break;
+		}
 	}
 
-	free_border (fence->border);
-	free (fence);
-	fence = NULL;
+	if (fence) {
+		free_border (fence->border);
+		free (fence);
+		fence = NULL;
+	}
 /*
 	if (head->runway) {
 		fprintf(stdout, "********** update runway info **********\n");
